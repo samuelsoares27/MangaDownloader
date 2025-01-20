@@ -86,7 +86,7 @@ class Program
                                         var image = new iText.Layout.Element.Image(iText.IO.Image.ImageDataFactory.Create(imageData));
                                         image.SetAutoScale(true);
                                         document.Add(image);
-                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE)); // Quebra de página entre capítulos
                                     }
                                 }
                             }
@@ -135,9 +135,12 @@ class Program
                                         var image = new iText.Layout.Element.Image(iText.IO.Image.ImageDataFactory.Create(imageData));
                                         image.SetAutoScale(true);
                                         document.Add(image);
-                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE)); // Quebra de página entre capítulos
                                     }
                                 }
+
+                                // Adiciona uma página em branco para separar capítulos
+                                document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
                             }
                             catch (Exception ex)
                             {
