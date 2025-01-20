@@ -14,76 +14,153 @@ class Program
 
     static async Task Main(string[] args)
     {
-        // Solicitar o nome do anime/mangá
-        Console.WriteLine("Informe o nome do anime/mangá:");
-        string animeName = Console.ReadLine();
-
-        // Solicitar a URL base
-        Console.WriteLine("Informe a URL base (exemplo: https://mangaonline.biz/capitulo/nomedo-manga-capitulo-):");
-        string baseUrl = Console.ReadLine();
-
-        // Solicitar o capítulo inicial e final
-        Console.WriteLine("Informe o capítulo inicial (exemplo: 1):");
-        string startChapter = Console.ReadLine();
-
-        Console.WriteLine("Informe o capítulo final (exemplo: 232-5):");
-        string endChapter = Console.ReadLine();
-
-        // Definir a pasta de saída com o nome do anime/mangá
-        string outputFolder = Path.Combine(Directory.GetCurrentDirectory(), animeName);
-
-        // Criar a pasta se ela não existir
-        Directory.CreateDirectory(outputFolder);
-
-        Console.WriteLine($"Baixando capítulos de {startChapter} a {endChapter} para a pasta '{outputFolder}'...");
-
-        // Gerar a lista de capítulos
-        var chapterList = GenerateChapterList(startChapter, endChapter);
-
-        foreach (string chapter in chapterList)
+        string option;
+        do
         {
-            string chapterUrl = $"{baseUrl}{chapter}/";
-            string chapterPdfPath = Path.Combine(outputFolder, $"{animeName}-Capitulo-{chapter}.pdf");
+            // Menu de Opções
+            Console.WriteLine("==== Menu de Opções ====");
+            Console.WriteLine("1 - Baixar capítulos em PDFs separados");
+            Console.WriteLine("2 - Baixar capítulos e combiná-los em um único PDF");
+            Console.WriteLine("3 - Sair");
+            Console.Write("Escolha uma opção (1, 2 ou 3): ");
+            option = Console.ReadLine();
 
-            Console.WriteLine($"Baixando imagens do capítulo: {chapterUrl}");
-
-            try
+            if (option == "1" || option == "2")
             {
-                var imageUrls = await GetImageUrlsFromChapter(chapterUrl);
+                // Solicitar o nome do anime/mangá
+                Console.WriteLine("Informe o nome do anime/mangá:");
+                string animeName = Console.ReadLine();
 
-                if (imageUrls.Count == 0)
+                // Solicitar a URL base
+                Console.WriteLine("Informe a URL base (exemplo: https://mangaonline.biz/capitulo/nomedo-manga-capitulo-):");
+                string baseUrl = Console.ReadLine();
+
+                // Solicitar o capítulo inicial e final
+                Console.WriteLine("Informe o capítulo inicial (exemplo: 1):");
+                string startChapter = Console.ReadLine();
+
+                Console.WriteLine("Informe o capítulo final (exemplo: 232-5):");
+                string endChapter = Console.ReadLine();
+
+                // Definir a pasta de saída com o nome do anime/mangá
+                string outputFolder = Path.Combine(Directory.GetCurrentDirectory(), animeName);
+                Directory.CreateDirectory(outputFolder);
+
+                Console.WriteLine($"Processando capítulos de {startChapter} a {endChapter}...");
+
+                // Gerar a lista de capítulos
+                var chapterList = GenerateChapterList(startChapter, endChapter);
+
+                if (option == "1")
                 {
-                    Console.WriteLine($"Nenhuma imagem encontrada no capítulo {chapter}. Pulando...");
-                    continue;
-                }
-
-                using (PdfWriter writer = new PdfWriter(chapterPdfPath))
-                using (PdfDocument pdf = new PdfDocument(writer))
-                {
-                    Document document = new Document(pdf);
-
-                    foreach (var imageUrl in imageUrls)
+                    // Baixar capítulos em PDFs separados
+                    foreach (string chapter in chapterList)
                     {
-                        Console.WriteLine($"Baixando imagem: {imageUrl}");
-                        var imageData = await DownloadImage(imageUrl);
+                        string chapterUrl = $"{baseUrl}{chapter}/";
+                        string chapterPdfPath = Path.Combine(outputFolder, $"{animeName}-Capitulo-{chapter}.pdf");
 
-                        if (imageData != null)
+                        Console.WriteLine($"Baixando imagens do capítulo: {chapterUrl}");
+
+                        try
                         {
-                            var image = new iText.Layout.Element.Image(iText.IO.Image.ImageDataFactory.Create(imageData));
-                            image.SetAutoScale(true);
-                            document.Add(image);
-                            document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                            var imageUrls = await GetImageUrlsFromChapter(chapterUrl);
+
+                            if (imageUrls.Count == 0)
+                            {
+                                Console.WriteLine($"Nenhuma imagem encontrada no capítulo {chapter}. Pulando...");
+                                continue;
+                            }
+
+                            using (PdfWriter writer = new PdfWriter(chapterPdfPath))
+                            using (PdfDocument pdf = new PdfDocument(writer))
+                            {
+                                Document document = new Document(pdf);
+
+                                foreach (var imageUrl in imageUrls)
+                                {
+                                    Console.WriteLine($"Baixando imagem: {imageUrl}");
+                                    var imageData = await DownloadImage(imageUrl);
+
+                                    if (imageData != null)
+                                    {
+                                        var image = new iText.Layout.Element.Image(iText.IO.Image.ImageDataFactory.Create(imageData));
+                                        image.SetAutoScale(true);
+                                        document.Add(image);
+                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                                    }
+                                }
+                            }
+
+                            Console.WriteLine($"PDF do capítulo {chapter} salvo em: {chapterPdfPath}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Erro ao processar o capítulo {chapter}: {ex.Message}");
                         }
                     }
                 }
+                else if (option == "2")
+                {
+                    // Combinar todos os capítulos em um único PDF
+                    string combinedPdfPath = Path.Combine(outputFolder, $"{animeName}-Capitulos-{startChapter}-a-{endChapter}.pdf");
 
-                Console.WriteLine($"PDF do capítulo {chapter} salvo em: {chapterPdfPath}");
+                    using (PdfWriter writer = new PdfWriter(combinedPdfPath))
+                    using (PdfDocument pdf = new PdfDocument(writer))
+                    {
+                        Document document = new Document(pdf);
+
+                        foreach (string chapter in chapterList)
+                        {
+                            string chapterUrl = $"{baseUrl}{chapter}/";
+
+                            Console.WriteLine($"Baixando imagens do capítulo: {chapterUrl}");
+
+                            try
+                            {
+                                var imageUrls = await GetImageUrlsFromChapter(chapterUrl);
+
+                                if (imageUrls.Count == 0)
+                                {
+                                    Console.WriteLine($"Nenhuma imagem encontrada no capítulo {chapter}. Pulando...");
+                                    continue;
+                                }
+
+                                foreach (var imageUrl in imageUrls)
+                                {
+                                    Console.WriteLine($"Baixando imagem: {imageUrl}");
+                                    var imageData = await DownloadImage(imageUrl);
+
+                                    if (imageData != null)
+                                    {
+                                        var image = new iText.Layout.Element.Image(iText.IO.Image.ImageDataFactory.Create(imageData));
+                                        image.SetAutoScale(true);
+                                        document.Add(image);
+                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Erro ao processar o capítulo {chapter}: {ex.Message}");
+                            }
+                        }
+                    }
+
+                    Console.WriteLine($"PDF combinado salvo em: {combinedPdfPath}");
+                }
+
+                Console.WriteLine("Operação concluída!");
             }
-            catch (Exception ex)
+            else if (option == "3")
             {
-                Console.WriteLine($"Erro ao processar o capítulo {chapter}: {ex.Message}");
+                Console.WriteLine("Saindo... Obrigado por usar o programa!");
             }
-        }
+            else
+            {
+                Console.WriteLine("Opção inválida. Tente novamente.");
+            }
+
+        } while (option != "3");
     }
 
     static async Task<System.Collections.Generic.List<string>> GetImageUrlsFromChapter(string url)
@@ -137,13 +214,11 @@ class Program
 
         try
         {
-            // Separar números e subcapítulos
             int startMain = int.Parse(start.Split('-')[0]);
             int endMain = int.Parse(end.Split('-')[0]);
 
             for (int i = startMain; i <= endMain; i++)
             {
-                // Adicionar capítulos com subcapítulos
                 if (i == endMain && end.Contains('-'))
                 {
                     int subChapters = int.Parse(end.Split('-')[1]);
