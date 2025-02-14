@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -7,6 +8,10 @@ using iText.Kernel.Pdf;
 using iText.Layout;
 using iText.Layout.Element;
 using iText.Layout.Properties;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Chrome;
+using WebDriverManager.DriverConfigs.Impl;
+using WebDriverManager;
 
 class Program
 {
@@ -32,17 +37,27 @@ class Program
                 string animeName = Console.ReadLine();
 
                 // Solicitar a URL base
-                Console.WriteLine("Informe a URL base (exemplo: https://mangaonline.biz/capitulo/nomedo-manga-capitulo-):");
+                Console.WriteLine("Informe a URL base (exemplo: https://mangaonline.biz/capitulo/one-piece-capitulo-):");
                 string baseUrl = Console.ReadLine();
+
+                // Perguntar se a URL finaliza com "/" ou ".html"
+                Console.WriteLine("A URL finaliza com '/' ou '.html'? Digite apenas '/' ou 'html':");
+                string urlFormat = Console.ReadLine().Trim().ToLower();
+
+                if (urlFormat != "/" && urlFormat != "html")
+                {
+                    Console.WriteLine("Formato inválido! O programa só aceita '/' ou 'html'.");
+                    return;
+                }
 
                 // Solicitar o capítulo inicial e final
                 Console.WriteLine("Informe o capítulo inicial (exemplo: 1):");
                 string startChapter = Console.ReadLine();
 
-                Console.WriteLine("Informe o capítulo final (exemplo: 232-5):");
+                Console.WriteLine("Informe o capítulo final (exemplo: 10):");
                 string endChapter = Console.ReadLine();
 
-                // Definir a pasta de saída com o nome do anime/mangá
+                // Criar pasta de saída
                 string outputFolder = Path.Combine(Directory.GetCurrentDirectory(), animeName);
                 Directory.CreateDirectory(outputFolder);
 
@@ -53,17 +68,16 @@ class Program
 
                 if (option == "1")
                 {
-                    // Baixar capítulos em PDFs separados
                     foreach (string chapter in chapterList)
                     {
-                        string chapterUrl = $"{baseUrl}{chapter}/";
+                        string chapterUrl = (urlFormat == "/") ? $"{baseUrl}{chapter}/" : $"{baseUrl}{chapter}.html";
                         string chapterPdfPath = Path.Combine(outputFolder, $"{animeName}-Capitulo-{chapter}.pdf");
 
-                        Console.WriteLine($"Baixando imagens do capítulo: {chapterUrl}");
+                        Console.WriteLine($"Baixando capítulo: {chapterUrl}");
 
                         try
                         {
-                            var imageUrls = await GetImageUrlsFromChapter(chapterUrl);
+                            var imageUrls = (urlFormat == "html") ? GetImageUrlsWithSelenium(chapterUrl) : await GetImageUrlsFromChapter(chapterUrl);
 
                             if (imageUrls.Count == 0)
                             {
@@ -85,8 +99,9 @@ class Program
                                     {
                                         var image = new iText.Layout.Element.Image(iText.IO.Image.ImageDataFactory.Create(imageData));
                                         image.SetAutoScale(true);
+                                        image.SetHorizontalAlignment(iText.Layout.Properties.HorizontalAlignment.CENTER);
                                         document.Add(image);
-                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE)); // Quebra de página entre capítulos
+                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
                                     }
                                 }
                             }
@@ -101,7 +116,6 @@ class Program
                 }
                 else if (option == "2")
                 {
-                    // Combinar todos os capítulos em um único PDF
                     string combinedPdfPath = Path.Combine(outputFolder, $"{animeName}-Capitulos-{startChapter}-a-{endChapter}.pdf");
 
                     using (PdfWriter writer = new PdfWriter(combinedPdfPath))
@@ -111,13 +125,13 @@ class Program
 
                         foreach (string chapter in chapterList)
                         {
-                            string chapterUrl = $"{baseUrl}{chapter}/";
+                            string chapterUrl = (urlFormat == "/") ? $"{baseUrl}{chapter}/" : $"{baseUrl}{chapter}.html";
 
-                            Console.WriteLine($"Baixando imagens do capítulo: {chapterUrl}");
+                            Console.WriteLine($"Baixando capítulo: {chapterUrl}");
 
                             try
                             {
-                                var imageUrls = await GetImageUrlsFromChapter(chapterUrl);
+                                var imageUrls = (urlFormat == "html") ? GetImageUrlsWithSelenium(chapterUrl) : await GetImageUrlsFromChapter(chapterUrl);
 
                                 if (imageUrls.Count == 0)
                                 {
@@ -134,12 +148,12 @@ class Program
                                     {
                                         var image = new iText.Layout.Element.Image(iText.IO.Image.ImageDataFactory.Create(imageData));
                                         image.SetAutoScale(true);
+                                        image.SetHorizontalAlignment(iText.Layout.Properties.HorizontalAlignment.CENTER);
                                         document.Add(image);
-                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE)); // Quebra de página entre capítulos
+                                        document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
                                     }
                                 }
 
-                                // Adiciona uma página em branco para separar capítulos
                                 document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
                             }
                             catch (Exception ex)
@@ -166,9 +180,38 @@ class Program
         } while (option != "3");
     }
 
-    static async Task<System.Collections.Generic.List<string>> GetImageUrlsFromChapter(string url)
+    static List<string> GetImageUrlsWithSelenium(string url)
     {
-        var imageUrls = new System.Collections.Generic.List<string>();
+        var imageUrls = new List<string>();
+
+        new DriverManager().SetUpDriver(new ChromeConfig());
+
+        var options = new ChromeOptions();
+        options.AddArgument("--headless");
+
+        using (var driver = new ChromeDriver(options))
+        {
+            driver.Navigate().GoToUrl(url);
+            System.Threading.Thread.Sleep(3000);
+
+            var imageElements = driver.FindElements(By.XPath("//div[@class='image-gallery']//img"));
+
+            foreach (var img in imageElements)
+            {
+                string src = img.GetAttribute("src") ?? img.GetAttribute("data-src");
+                if (!string.IsNullOrEmpty(src))
+                {
+                    imageUrls.Add(src);
+                }
+            }
+        }
+
+        return imageUrls;
+    }
+
+    static async Task<List<string>> GetImageUrlsFromChapter(string url)
+    {
+        var imageUrls = new List<string>();
 
         try
         {
@@ -211,9 +254,9 @@ class Program
         }
     }
 
-    static System.Collections.Generic.List<string> GenerateChapterList(string start, string end)
+    static List<string> GenerateChapterList(string start, string end)
     {
-        var chapterList = new System.Collections.Generic.List<string>();
+        var chapterList = new List<string>();
 
         try
         {
